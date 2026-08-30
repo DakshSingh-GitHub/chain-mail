@@ -11,26 +11,30 @@ import {
   Terminal,
   Crosshair,
   Search,
-  Upload
+  Upload,
+  Sparkles
 } from 'lucide-react';
 import { MOCK_100_EMAILS } from '@/lib/mock-emails';
 import { analyzeEmailThreat } from '@/lib/forensic-engine';
+import { useForensicSession } from '@/components/forensic-context';
+import { ActiveTargetBanner } from '@/components/active-target-banner';
 
 export default function DashboardPage() {
+  const { activeReport, activeMeta, isUploaded } = useForensicSession();
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
-  // Real statistics computed directly from the 100 email dataset
-  const totalCount = MOCK_100_EMAILS.length;
-  const threatCount = useMemo(() => MOCK_100_EMAILS.filter(m => m.isSpoofed).length, []);
-  const safeCount = useMemo(() => MOCK_100_EMAILS.filter(m => !m.isSpoofed).length, []);
-  const becCount = useMemo(() => MOCK_100_EMAILS.filter(m => m.category === 'BEC').length, []);
+  // Real statistics computed directly from the 100 email dataset + active ingested target
+  const totalCount = MOCK_100_EMAILS.length + (isUploaded ? 1 : 0);
+  const threatCount = useMemo(() => MOCK_100_EMAILS.filter(m => m.isSpoofed).length + (isUploaded && activeReport.header_forensics.detected_spoofing ? 1 : 0), [isUploaded, activeReport]);
+  const safeCount = useMemo(() => MOCK_100_EMAILS.filter(m => !m.isSpoofed).length + (isUploaded && !activeReport.header_forensics.detected_spoofing ? 1 : 0), [isUploaded, activeReport]);
+  const becCount = useMemo(() => MOCK_100_EMAILS.filter(m => m.category === 'BEC').length + (isUploaded && activeReport.threat_classification === 'BEC' ? 1 : 0), [isUploaded, activeReport]);
 
   // Generate real-time analyzed incidents from our dataset
   const incidents = useMemo(() => {
-    return MOCK_100_EMAILS.map((mail) => {
+    const list = MOCK_100_EMAILS.map((mail) => {
       const report = analyzeEmailThreat(mail.input);
       return {
         id: mail.id,
@@ -46,10 +50,33 @@ export default function DashboardPage() {
         subject: mail.subject,
         from: mail.senderEmail,
         isSpoofed: mail.isSpoofed,
-        threatLevel: mail.threatLevel
+        threatLevel: mail.threatLevel,
+        isUploaded: false
       };
     });
-  }, []);
+
+    if (isUploaded && activeReport) {
+      list.unshift({
+        id: activeMeta.id,
+        name: activeMeta.subject,
+        classification: activeReport.threat_classification,
+        riskScore: activeReport.fraud_risk_score,
+        originIp: activeReport.traceability_map.earliest_reliable_ip,
+        originCountry: activeReport.traceability_map.geolocation_estimate.country,
+        infra: activeReport.traceability_map.infrastructure_type,
+        campaign: activeReport.attribution_confidence.associated_campaign || 'Custom EML Ingest',
+        accountState: activeReport.attribution_confidence.account_state,
+        timestamp: 'Just now',
+        subject: activeMeta.subject,
+        from: activeMeta.senderEmail,
+        isSpoofed: activeReport.header_forensics.detected_spoofing,
+        threatLevel: activeReport.fraud_risk_score > 70 ? 'Critical' : activeReport.fraud_risk_score > 40 ? 'High' : 'Clean',
+        isUploaded: true
+      });
+    }
+
+    return list;
+  }, [isUploaded, activeReport, activeMeta]);
 
   const filteredIncidents = useMemo(() => {
     return incidents.filter((inc) => {
@@ -79,6 +106,9 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 pb-12">
+      {/* Active Target Banner */}
+      <ActiveTargetBanner />
+
       {/* Top Banner: Real Ingestion Operations Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl border border-black bg-white dark:bg-[#181818] shadow-lg">
         <div className="space-y-1">
@@ -282,7 +312,14 @@ export default function DashboardPage() {
                   >
                     {/* Case ID */}
                     <td className="py-4 px-4 font-semibold text-neutral-900 dark:text-white">
-                      {inc.id}
+                      <div className="flex items-center gap-1.5">
+                        <span>{inc.id}</span>
+                        {inc.isUploaded && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[9px] font-bold tracking-tight uppercase">
+                            Ingested EML
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Threat Classification Badge */}

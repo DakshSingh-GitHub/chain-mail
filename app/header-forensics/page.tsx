@@ -2,19 +2,30 @@
 
 import React, { useState } from 'react';
 import {
-  AlertTriangle
+  AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { PRESET_SCENARIOS } from '@/lib/presets';
 import { analyzeEmailThreat } from '@/lib/forensic-engine';
+import { useForensicSession } from '@/components/forensic-context';
+import { ActiveTargetBanner } from '@/components/active-target-banner';
 
 export default function HeaderForensicsPage() {
-  const [selectedPresetId, setSelectedPresetId] = useState('bec-wire-transfer');
-  const scenario = PRESET_SCENARIOS.find(p => p.id === selectedPresetId) || PRESET_SCENARIOS[0];
-  const report = analyzeEmailThreat(scenario.input);
+  const { activeReport, activeMeta, isUploaded, resetToPreset } = useForensicSession();
+  const [selectedPresetId, setSelectedPresetId] = useState<string | 'ACTIVE_EML'>('ACTIVE_EML');
+
+  const scenario = selectedPresetId === 'ACTIVE_EML'
+    ? null
+    : PRESET_SCENARIOS.find(p => p.id === selectedPresetId);
+
+  const report = scenario ? analyzeEmailThreat(scenario.input) : activeReport;
   const { header_forensics } = report;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      {/* Active Target Banner */}
+      <ActiveTargetBanner />
+
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl border border-neutral-200 dark:border-black bg-white dark:bg-[#181818] shadow-lg">
         <div className="space-y-1">
@@ -33,10 +44,25 @@ export default function HeaderForensicsPage() {
 
         {/* Case Switcher */}
         <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setSelectedPresetId('ACTIVE_EML')}
+            className={`px-3 py-1.5 rounded-full text-xs font-mono transition-all cursor-pointer border flex items-center gap-1.5 ${
+              selectedPresetId === 'ACTIVE_EML'
+                ? 'bg-neutral-950 text-white border-neutral-950 dark:bg-white dark:text-black dark:border-black font-semibold shadow-xs'
+                : 'bg-neutral-100 dark:bg-[#222222] border-neutral-300 dark:border-black text-neutral-700 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-[#2a2a2a]'
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${isUploaded ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            <span>{isUploaded ? 'Active Ingested .EML' : 'Active Target'}</span>
+          </button>
+
           {PRESET_SCENARIOS.map((p) => (
             <button
               key={p.id}
-              onClick={() => setSelectedPresetId(p.id)}
+              onClick={() => {
+                setSelectedPresetId(p.id);
+                resetToPreset(p.id);
+              }}
               className={`px-3 py-1.5 rounded-full text-xs font-mono transition-all cursor-pointer border ${
                 selectedPresetId === p.id
                   ? 'bg-neutral-950 text-white border-neutral-950 dark:bg-white dark:text-black dark:border-black font-semibold shadow-xs'

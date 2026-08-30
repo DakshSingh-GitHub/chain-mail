@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ForensicProvider } from "@/components/forensic-context";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 
@@ -22,11 +23,13 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col font-sans cyber-grid selection:bg-cyan-500/20 selection:text-cyan-400">
         <ThemeProvider>
-          <Navbar />
-          <main className="flex-1 pt-24 pb-16">
-            {children}
-          </main>
-          <Footer />
+          <ForensicProvider>
+            <Navbar />
+            <main className="flex-1 pt-24 pb-16">
+              {children}
+            </main>
+            <Footer />
+          </ForensicProvider>
         </ThemeProvider>
       </body>
     </html>

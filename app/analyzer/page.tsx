@@ -33,6 +33,7 @@ import { MOCK_100_EMAILS, EmailRecord } from '@/lib/mock-emails';
 import { analyzeEmailThreat } from '@/lib/forensic-engine';
 import { parseEmlFileContent } from '@/lib/eml-parser';
 import { ForensicReport, EmailAnalysisInput } from '@/lib/types';
+import { useForensicSession } from '@/components/forensic-context';
 
 interface ForensicStage {
   step: number;
@@ -53,6 +54,7 @@ const FORENSIC_STAGES: ForensicStage[] = [
 function AnalyzerContent() {
   const searchParams = useSearchParams();
   const mailIdQuery = searchParams.get('mailId') || searchParams.get('preset');
+  const { activeInput, activeReport, activeMeta, setActiveEmail } = useForensicSession();
 
   // Engine Configuration State (Key is sourced from server environment variable GEMINI_API_KEY)
   const [geminiModel] = useState<string>('gemini-2.5-flash');
@@ -205,6 +207,13 @@ function AnalyzerContent() {
       if (res.ok) {
         const data = await res.json();
         setReport(data);
+        setActiveEmail(input, data, {
+          id: selectedMail?.id,
+          subject: selectedMail?.subject,
+          senderName: selectedMail?.senderName,
+          senderEmail: selectedMail?.senderEmail,
+          isUploaded: Boolean(selectedMail?.id?.startsWith('EML-'))
+        });
         if (data._meta?.ai_error) {
           setAnalysisError(data._meta.ai_error);
         }
@@ -231,6 +240,14 @@ function AnalyzerContent() {
     setRawHeaders(mail.input.raw_headers);
     setEmailBody(mail.input.email_body);
     setMetadataJson(JSON.stringify(mail.input.metadata || {}, null, 2));
+
+    setActiveEmail(mail.input, undefined, {
+      id: mail.id,
+      subject: mail.subject,
+      senderName: mail.senderName,
+      senderEmail: mail.senderEmail,
+      isUploaded: false
+    });
 
     executeAnalysisPayload(mail.input);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -269,7 +286,18 @@ function AnalyzerContent() {
       setRawHeaders(parsed.raw_headers);
       setEmailBody(parsed.email_body);
       setMetadataJson(JSON.stringify(parsed.metadata || {}, null, 2));
+
+      setActiveEmail(parsed, rep, {
+        id: customRecord.id,
+        subject: customRecord.subject,
+        senderName: customRecord.senderName,
+        senderEmail: customRecord.senderEmail,
+        isUploaded: true,
+        fileName: file.name
+      });
+
       executeAnalysisPayload(parsed);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     reader.readAsText(file);
   };
